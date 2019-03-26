@@ -46,6 +46,29 @@ static int posix_transfer_file(const std::string &source, const std::string &des
     return VELOC_SUCCESS;
 }
 
+// Given a transfer string like "AXL_XFER_ASYNC_BBAPI", return the
+// corresponding axl_xfer_t.
+static axl_xfer_t axl_type_str_to_type(const std::string axl_type_str)
+{
+    std::string str[AXL_XFER_BEST];
+    unsigned int i;
+
+    str[AXL_XFER_SYNC] = "AXL_XFER_SYNC";
+    str[AXL_XFER_ASYNC_DAEMON] = "AXL_XFER_ASYNC_DAEMON";
+    str[AXL_XFER_ASYNC_DW] = "AXL_XFER_ASYNC_DW";
+    str[AXL_XFER_ASYNC_BBAPI] = "AXL_XFER_ASYNC_BBAPI";
+    str[AXL_XFER_ASYNC_CPPR] = "AXL_XFER_ASYNC_CPPR";
+    str[AXL_XFER_BEST] = "AXL_XFER_BEST";
+
+    for (i = 0; i < AXL_XFER_BEST; i++) {
+        if (str[i] == axl_type_str) {
+            // match
+            return (axl_xfer_t) i;
+        }
+    }
+    return AXL_XFER_NULL;
+}
+
 transfer_module_t::transfer_module_t(const config_t &c) : cfg(c), axl_type(AXL_XFER_NULL) {
     std::string axl_config, axl_type_str;
 
@@ -60,10 +83,17 @@ transfer_module_t::transfer_module_t(const config_t &c) : cfg(c), axl_type(AXL_X
     // 	ERROR("AXL configuration file (axl_config) missing or invalid, deactivated!");
     // 	return;
     // }
-    if (!cfg.get_optional("axl_type", axl_type_str) || (axl_type_str != "AXL_XFER_SYNC")) {
-	INFO("AXL transfer type (axl_type) missing or invalid, deactivated!");
-	return;
-    }    
+    if (!cfg.get_optional("axl_type", axl_type_str)) {
+        // They didn't specify a AXL transfer type.  Let AXL choose the best
+        // transfer type.
+        axl_type = AXL_XFER_BEST;
+    } else {
+        axl_type = axl_type_str_to_type(axl_type_str);
+        if (axl_type == AXL_XFER_NULL) {
+            ERROR("AXL has no transfer type called: " << axl_type_str);
+        }
+    }
+
     int ret = AXL_Init(NULL);
     if (ret)
 	ERROR("AXL initialization failure, error code: " << ret << "; falling back to POSIX");
